@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Color Picker – HEX, RGB & HSL Color Codes | TOOLBOX</title>
+<meta name="description" content="Pick any color and copy its HEX, RGB and HSL codes. Adjust with sliders and explore lighter and darker shades. Free and private.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool" style="max-width:960px">
+  <p class="crumbs"><a href="../index.html">Home</a> / Utilities / Color Picker</p>
+  <h1>Color Picker</h1>
+  <p class="lead">Pick a color, fine-tune it, and copy the code you need for your website or design.</p>
+
+  <div class="qr-layout">
+    <div class="panel">
+      <div class="swatch" id="swatch"></div>
+      <div class="pickrow">
+        <input id="picker" type="color" value="#6c4dff" aria-label="Pick a color">
+        <input class="num" id="hexin" type="text" maxlength="7" value="#6C4DFF" aria-label="HEX code">
+        <button class="btn ghost" id="eye" type="button" hidden>Pick from screen</button>
+      </div>
+      <div style="margin-top:18px">
+        <label class="sl">H<input id="sh" type="range" min="0" max="360"><output id="oh"></output></label>
+        <label class="sl">S<input id="ss" type="range" min="0" max="100"><output id="os"></output></label>
+        <label class="sl">L<input id="sl" type="range" min="0" max="100"><output id="ol"></output></label>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="val"><span id="vhex"></span><button class="btn" type="button" data-copy="vhex">Copy</button></div>
+      <div class="val"><span id="vrgb"></span><button class="btn" type="button" data-copy="vrgb">Copy</button></div>
+      <div class="val"><span id="vhsl"></span><button class="btn" type="button" data-copy="vhsl">Copy</button></div>
+      <p class="note" style="margin:6px 0 0" id="hint">Paste a HEX code, use the sliders, or tap a shade below.</p>
+    </div>
+  </div>
+  <h2 style="font-size:1.2rem;margin-top:26px">Lighter and darker shades</h2>
+  <div class="shades" id="shades"></div>
+  <section class="note">
+    <h2>Good to know</h2>
+    <ul>
+      <li>HEX works in CSS as #6C4DFF, and RGB and HSL as rgb(…) and hsl(…).</li>
+      <li>“Pick from screen” works in Chrome and Edge on desktop.</li>
+      <li>Nothing you pick is sent anywhere.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let H = 252, S = 100, L = 65;
+
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [f(0), f(8), f(4)].map(x => Math.round(x * 255));
+}
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min, l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  return [h, s * 100, l * 100];
+}
+const toHex = rgb => "#" + rgb.map(x => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+const textOn = ([r, g, b]) => (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? "#000" : "#fff";
+
+function setHex(str) {
+  let m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(str.trim());
+  if (!m) return false;
+  let x = m[1]; if (x.length === 3) x = x.split("").map(c => c + c).join("");
+  [H, S, L] = rgbToHsl(parseInt(x.slice(0, 2), 16), parseInt(x.slice(2, 4), 16), parseInt(x.slice(4, 6), 16));
+  return true;
+}
+
+function render(skip) {
+  const rgb = hslToRgb(H, S, L), hex = toHex(rgb);
+  $("swatch").style.background = hex;
+  $("picker").value = hex.toLowerCase();
+  if (skip !== "hex") $("hexin").value = hex;
+  if (skip !== "sl") { $("sh").value = H; $("ss").value = S; $("sl").value = L; }
+  $("oh").textContent = Math.round(H) + "°"; $("os").textContent = Math.round(S) + "%"; $("ol").textContent = Math.round(L) + "%";
+  $("vhex").textContent = hex;
+  $("vrgb").textContent = `rgb(${rgb.join(", ")})`;
+  $("vhsl").textContent = `hsl(${Math.round(H)}, ${Math.round(S)}%, ${Math.round(L)}%)`;
+  $("shades").innerHTML = [95, 85, 75, 65, 55, 45, 35, 25, 15].map(l => {
+    const c = hslToRgb(H, S, l);
+    return `<button type="button" data-l="${l}" style="background:${toHex(c)};color:${textOn(c)}" aria-label="Shade ${toHex(c)}">${toHex(c)}</button>`;
+  }).join("");
+}
+
+$("picker").addEventListener("input", e => { setHex(e.target.value); render(); });
+$("hexin").addEventListener("input", e => { if (setHex(e.target.value)) render("hex"); });
+$("hexin").addEventListener("blur", () => render());
+["sh", "ss", "sl"].forEach(id => $(id).addEventListener("input", () => {
+  H = +$("sh").value; S = +$("ss").value; L = +$("sl").value; render("sl");
+}));
+$("shades").addEventListener("click", e => {
+  const b = e.target.closest("[data-l]");
+  if (b) { L = +b.dataset.l; render(); }
+});
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-copy]");
+  if (!b) return;
+  try { await navigator.clipboard.writeText($(b.dataset.copy).textContent); b.textContent = "Copied"; }
+  catch { b.textContent = "Failed"; }
+  setTimeout(() => b.textContent = "Copy", 1500);
+});
+if ("EyeDropper" in window) {
+  $("eye").hidden = false;
+  $("eye").addEventListener("click", () => new EyeDropper().open().then(r => { setHex(r.sRGBHex); render(); }).catch(() => {}));
+}
+setHex("#6C4DFF"); render();
+
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Typing Speed Test – Check Your WPM & Accuracy | TOOLBOX</title>
+<meta name="description" content="Test your typing speed in words per minute. Choose 30, 60 or 120 seconds and see your accuracy. Free, no signup.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / Utilities / Typing Speed Test</p>
+  <h1>Typing Speed Test</h1>
+  <p class="lead">Type the text below as fast and as accurately as you can. The timer starts when you press your first key.</p>
+
+  <div class="opts" style="margin-top:0">
+    <label>Test length
+      <select id="duration">
+        <option value="30">30 seconds</option>
+        <option value="60" selected>60 seconds</option>
+        <option value="120">120 seconds</option>
+      </select>
+    </label>
+    <button class="btn ghost" id="restart" type="button">New test</button>
+  </div>
+
+  <div class="stats" aria-live="off">
+    <div class="stat" style="--c:var(--violet)"><b id="wpm">0</b><span>Words per minute</span></div>
+    <div class="stat" style="--c:var(--teal)"><b id="acc">100%</b><span>Accuracy</span></div>
+    <div class="stat" style="--c:var(--pink)"><b id="err">0</b><span>Mistakes</span></div>
+    <div class="stat" style="--c:var(--amber)"><b id="time">60</b><span>Seconds left</span></div>
+  </div>
+
+  <div id="done" hidden></div>
+  <div class="passage" id="passage" aria-label="Text to type"></div>
+  <textarea id="typed" class="area" style="min-height:110px" placeholder="Click here and start typing…" aria-label="Type here" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+
+  <section class="note">
+    <h2>How it’s scored</h2>
+    <ul>
+      <li>Every 5 correct characters count as one word.</li>
+      <li>Accuracy is the share of typed characters that match the text.</li>
+      <li>You can use backspace to fix mistakes. Pasting is turned off.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const SENTENCES = [
+  "The quick brown fox jumps over the lazy dog near the river bank.",
+  "Good habits are built one small step at a time, every single day.",
+  "A clear plan and a calm mind can solve almost any problem.",
+  "Reading a few pages each night makes you wiser than you think.",
+  "Fresh coffee and a quiet morning are the best way to start work.",
+  "The train left the station just as the sun began to set.",
+  "Practice makes progress, so keep your fingers moving steadily.",
+  "She opened the window and listened to the rain on the roof.",
+  "Simple tools, used well, can build something truly useful.",
+  "Learning to type fast saves hours of time over a whole year.",
+  "The market was full of bright colors, warm smells and friendly voices.",
+  "Every great website starts with a clean idea and careful code."
+];
+
+let text = "", started = false, ended = false, startTime = 0, timer = null, limit = 60;
+
+function pick() {
+  const pool = [...SENTENCES].sort(() => Math.random() - 0.5);
+  let s = "";
+  while (s.length < limit * 8) { if (!pool.length) pool.push(...SENTENCES); s += (s ? " " : "") + pool.pop(); }
+  return s;
+}
+
+function reset() {
+  clearInterval(timer);
+  limit = +$("duration").value;
+  text = pick(); started = ended = false;
+  $("typed").value = ""; $("typed").disabled = false;
+  $("done").hidden = true;
+  $("wpm").textContent = "0"; $("acc").textContent = "100%"; $("err").textContent = "0"; $("time").textContent = limit;
+  render(""); $("typed").focus();
+}
+
+function render(v) {
+  let html = "";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i].replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const cls = i < v.length ? (v[i] === text[i] ? "ok" : "bad") : i === v.length ? "cur" : "todo";
+    html += `<span class="${cls}">${ch}</span>`;
+  }
+  $("passage").innerHTML = html;
+}
+
+function stats() {
+  const v = $("typed").value;
+  let good = 0;
+  for (let i = 0; i < v.length; i++) if (v[i] === text[i]) good++;
+  const mins = Math.max((Date.now() - startTime) / 60000, 1 / 600);
+  return { wpm: Math.round(good / 5 / mins), acc: v.length ? Math.round(good / v.length * 100) : 100, err: v.length - good };
+}
+
+function tick() {
+  const left = Math.max(0, limit - (Date.now() - startTime) / 1000);
+  $("time").textContent = Math.ceil(left);
+  const s = stats();
+  $("wpm").textContent = s.wpm; $("acc").textContent = s.acc + "%"; $("err").textContent = s.err;
+  if (left <= 0) finish();
+}
+
+function finish() {
+  if (ended) return;
+  ended = true; clearInterval(timer);
+  $("typed").disabled = true;
+  const s = stats();
+  const level = s.wpm < 25 ? "Keep practising. Speed comes with time." : s.wpm < 40 ? "Good start. You type at a comfortable pace." : s.wpm < 60 ? "Nice. That’s above average." : s.wpm < 80 ? "Great typing speed." : "Excellent. You’re a very fast typist.";
+  $("done").innerHTML = `<div class="final"><b>${s.wpm} WPM</b><span>${s.acc}% accuracy, ${s.err} mistake${s.err === 1 ? "" : "s"}</span><span>${level}</span></div>`;
+  $("done").hidden = false;
+}
+
+$("typed").addEventListener("input", () => {
+  if (ended) return;
+  let v = $("typed").value;
+  if (v.length > text.length) v = $("typed").value = v.slice(0, text.length);
+  if (!started && v.length) { started = true; startTime = Date.now(); timer = setInterval(tick, 250); }
+  render(v); tick();
+  if (v.length === text.length) finish();
+});
+$("typed").addEventListener("paste", e => e.preventDefault());
+$("duration").addEventListener("change", reset);
+$("restart").addEventListener("click", reset);
+$("year").textContent = new Date().getFullYear();
+reset();
+</script>
+</body>
+</html>

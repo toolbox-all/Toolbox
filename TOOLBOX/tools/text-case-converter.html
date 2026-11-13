@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Text Case Converter – UPPER, lower, Title, camelCase & more | TOOLBOX</title>
+<meta name="description" content="Convert text to uppercase, lowercase, title case, sentence case, camelCase, snake_case and more. Free, instant and private.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / Text tools / Text Case Converter</p>
+  <h1>Text Case Converter</h1>
+  <p class="lead">Paste your text and switch it to any case with one click. Made a mistake? Press Undo.</p>
+
+  <textarea id="text" class="area" placeholder="Type or paste your text here, then choose a case below…" aria-label="Your text"></textarea>
+
+  <div class="cases" role="group" aria-label="Choose a case">
+    <button type="button" data-case="upper">UPPER CASE</button>
+    <button type="button" data-case="lower">lower case</button>
+    <button type="button" data-case="title">Title Case</button>
+    <button type="button" data-case="sentence">Sentence case</button>
+    <button type="button" data-case="camel">camelCase</button>
+    <button type="button" data-case="pascal">PascalCase</button>
+    <button type="button" data-case="snake">snake_case</button>
+    <button type="button" data-case="kebab">kebab-case</button>
+    <button type="button" data-case="alt">aLtErNaTiNg</button>
+  </div>
+
+  <div class="actions" style="margin-top:0">
+    <button class="btn" id="copy" type="button">Copy text</button>
+    <button class="btn ghost" id="undo" type="button" disabled>Undo</button>
+    <button class="btn ghost" id="clear" type="button">Clear</button>
+  </div>
+
+  <section class="note">
+    <h2>Good to know</h2>
+    <ul>
+      <li>camelCase, PascalCase, snake_case and kebab-case turn your whole text into one name, which is handy for code and file names.</li>
+      <li>Tamil and other scripts without upper and lower case stay the same.</li>
+      <li>Your text stays in your browser and is never sent anywhere.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat();
+
+const words = t => t.replace(/([a-z\d])([A-Z])/g, "$1 $2").toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+const cap = w => w.charAt(0).toUpperCase() + w.slice(1);
+const CASES = {
+  upper: t => t.toUpperCase(),
+  lower: t => t.toLowerCase(),
+  title: t => t.toLowerCase().replace(/(^|[\s(\["“-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()),
+  sentence: t => t.toLowerCase().replace(/(^\s*|[.!?]\s+|\n\s*)(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).replace(/\bi\b/g, "I"),
+  camel: t => words(t).map((w, i) => i ? cap(w) : w).join(""),
+  pascal: t => words(t).map(cap).join(""),
+  snake: t => words(t).join("_"),
+  kebab: t => words(t).join("-"),
+  alt: t => Array.from(t.toLowerCase()).map((c, i) => i % 2 ? c.toUpperCase() : c).join("")
+};
+const history = [];
+
+document.querySelector(".cases").addEventListener("click", e => {
+  const b = e.target.closest("[data-case]");
+  if (!b) return;
+  const t = $("text").value;
+  if (!t) { $("text").focus(); return; }
+  history.push(t);
+  $("text").value = CASES[b.dataset.case](t);
+  $("undo").disabled = false;
+});
+$("undo").addEventListener("click", () => {
+  if (history.length) $("text").value = history.pop();
+  $("undo").disabled = !history.length;
+});
+$("clear").addEventListener("click", () => { $("text").value = ""; history.length = 0; $("undo").disabled = true; $("text").focus(); });
+$("copy").addEventListener("click", async () => {
+  const b = $("copy");
+  try { await navigator.clipboard.writeText($("text").value); b.textContent = "Copied"; }
+  catch { b.textContent = "Copy failed. Select the text and press Ctrl+C."; }
+  setTimeout(() => b.textContent = "Copy text", 1800);
+});
+
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

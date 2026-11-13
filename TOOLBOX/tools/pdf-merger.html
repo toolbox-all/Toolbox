@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free PDF Merger – Combine PDF Files into One | TOOLBOX</title>
+<meta name="description" content="Merge multiple PDF files into one document online. Reorder files, no upload, free and private.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / PDF tools / PDF Merger</p>
+  <h1>PDF Merger</h1>
+  <p class="lead">Combine two or more PDF files into one. Arrange them in the order you want. Everything happens in your browser.</p>
+
+  <label class="drop" id="drop" for="file">
+    <b>Drop PDF files here or click to choose</b>
+    <span>Add two or more PDFs. You can add more files again later.</span>
+  </label>
+  <input id="file" type="file" accept="application/pdf,.pdf" multiple hidden>
+  <p class="status" id="msg" aria-live="polite"></p>
+
+  <div class="list" id="list"></div>
+  <p class="status" id="summary"></p>
+  <div class="actions" style="margin-top:0">
+    <button class="btn" id="go" type="button" disabled>Merge PDFs</button>
+    <button class="btn ghost" id="clear" type="button">Clear all</button>
+  </div>
+  <div class="list" id="result" aria-live="polite"></div>
+
+  <section class="note">
+    <h2>Tips</h2>
+    <ul>
+      <li>Files are merged from top to bottom. Use ▲ and ▼ to change the order.</li>
+      <li>Password-protected PDFs can’t be merged. Remove the password first.</li>
+      <li>Your files stay in your browser and are never uploaded.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const fmt = b => b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(2) + " MB";
+const base = f => f.name.replace(/\.[^.]+$/, "");
+const isPdf = f => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function setMsg(t, err) { const m = $("msg"); m.textContent = t; m.className = "status" + (err ? " err" : ""); }
+function dlLink(blob, name) { const a = el("a", "btn alt", "Download"); a.href = URL.createObjectURL(blob); a.download = name; return a; }
+function setupDrop(handler) {
+  ["dragover", "dragenter"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+  ["dragleave", "drop"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+  $("drop").addEventListener("drop", e => handler([...e.dataTransfer.files]));
+  $("file").addEventListener("change", e => { const l = [...e.target.files]; e.target.value = ""; handler(l); });
+}
+function parseRanges(str, total) {
+  const out = [];
+  const tokens = str.split(",").map(s => s.trim()).filter(Boolean);
+  if (!tokens.length) throw new Error("Type the pages you want, like 1-3, 5, 8-10.");
+  for (const t of tokens) {
+    const m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(t);
+    if (!m) throw new Error(`“${t}” is not a valid page or range. Use numbers like 1-3, 5.`);
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    if (a < 1 || b < a || b > total) throw new Error(`“${t}” is outside this PDF, which has ${total} page${total > 1 ? "s" : ""}.`);
+    out.push([a, b]);
+  }
+  return out;
+}
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a - 1 + i);
+function pdfRow(name, info, action) {
+  const row = el("div", "item"), mid = el("div");
+  mid.append(el("div", "nm", name), el("span", "st", info));
+  row.append(el("div", "pdfico", "PDF"), mid);
+  if (action) row.append(action);
+  return row;
+}
+
+const items = [];
+function needLib() { if (typeof PDFLib === "undefined") { setMsg("The PDF library did not load. Check your internet connection and reload.", 1); return false; } return true; }
+
+async function addFiles(list) {
+  if (!needLib()) return;
+  const pdfs = list.filter(isPdf);
+  if (!pdfs.length) { setMsg("Choose PDF files.", 1); return; }
+  setMsg("Reading files…");
+  const bad = [];
+  for (const f of pdfs) {
+    try {
+      const bytes = await f.arrayBuffer();
+      const doc = await PDFLib.PDFDocument.load(bytes);
+      items.push({ name: f.name, bytes, pages: doc.getPageCount(), size: f.size });
+    } catch (e) { bad.push(f.name); }
+  }
+  render();
+  bad.length ? setMsg(`Can’t open: ${bad.join(", ")}. The file may be damaged or password protected.`, 1) : setMsg("");
+}
+
+function render() {
+  const list = $("list"); list.innerHTML = ""; $("result").innerHTML = "";
+  items.forEach((it, i) => {
+    const act = el("div", "mini");
+    [["up", "▲", "Move up"], ["down", "▼", "Move down"], ["del", "✕", "Remove"]].forEach(([a, t, label]) => {
+      const b = el("button", null, t);
+      b.type = "button"; b.dataset.act = a; b.dataset.i = i; b.setAttribute("aria-label", `${label}: ${it.name}`);
+      if ((a === "up" && i === 0) || (a === "down" && i === items.length - 1)) b.disabled = true;
+      act.append(b);
+    });
+    list.append(pdfRow(it.name, `${it.pages} page${it.pages > 1 ? "s" : ""}, ${fmt(it.size)}`, act));
+  });
+  const total = items.reduce((s, x) => s + x.pages, 0);
+  $("summary").textContent = items.length ? `${items.length} file${items.length > 1 ? "s" : ""}, ${total} pages in total.${items.length < 2 ? " Add at least one more file." : ""}` : "";
+  $("go").disabled = items.length < 2;
+}
+
+$("list").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const i = +b.dataset.i, a = b.dataset.act;
+  if (a === "del") items.splice(i, 1);
+  else { const j = a === "up" ? i - 1 : i + 1; [items[i], items[j]] = [items[j], items[i]]; }
+  render();
+});
+$("clear").addEventListener("click", () => { items.length = 0; render(); setMsg(""); });
+
+$("go").addEventListener("click", async () => {
+  if (!needLib()) return;
+  $("go").disabled = true; setMsg("Merging…"); $("result").innerHTML = "";
+  try {
+    const out = await PDFLib.PDFDocument.create();
+    for (const it of items) {
+      const src = await PDFLib.PDFDocument.load(it.bytes);
+      (await out.copyPages(src, src.getPageIndices())).forEach(p => out.addPage(p));
+    }
+    const blob = new Blob([await out.save()], { type: "application/pdf" });
+    $("result").append(pdfRow("merged.pdf", `${out.getPageCount()} pages, ${fmt(blob.size)}`, dlLink(blob, "merged.pdf")));
+    setMsg("Done. Your merged PDF is ready.");
+  } catch (e) { setMsg("Something went wrong while merging. Try removing the file that failed to open.", 1); }
+  $("go").disabled = items.length < 2;
+});
+setupDrop(addFiles);
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

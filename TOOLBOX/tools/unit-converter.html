@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Unit Converter – Length, Weight, Temperature, Area & More | TOOLBOX</title>
+<meta name="description" content="Convert length, weight, temperature, area, volume, speed, data size and time. Includes cent and ground. Free and instant.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / Calculators / Unit Converter</p>
+  <h1>Unit Converter</h1>
+  <p class="lead">Pick a type, enter a value and choose your units. You also see the value in every other unit.</p>
+
+  <div class="cases" id="tabs" role="group" aria-label="Choose a unit type"></div>
+  <div class="panel">
+    <div class="opts" style="margin:0">
+      <label>Value<input class="num" id="val" type="number" step="any" value="1"></label>
+      <label>From<select id="from"></select></label>
+      <button class="btn ghost swap" id="swap" type="button" aria-label="Swap units">⇄ Swap</button>
+      <label>To<select id="to"></select></label>
+    </div>
+  </div>
+  <div class="bigres" id="res" aria-live="polite"></div>
+  <h2 style="font-size:1.2rem">Same value in every unit</h2>
+  <div class="conv-all" id="all"></div>
+  <section class="note">
+    <h2>Good to know</h2>
+    <ul>
+      <li>Area includes the Tamil Nadu land units cent and ground (1 ground = 2,400 sq ft).</li>
+      <li>Data size uses 1 KB = 1,024 bytes, as most computers show it.</li>
+      <li>Very large or very small answers are shown in scientific notation, like 1.5e-7.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const CATS = {
+  "Length": [["Millimetre","mm",0.001],["Centimetre","cm",0.01],["Metre","m",1],["Kilometre","km",1000],["Inch","in",0.0254],["Foot","ft",0.3048],["Yard","yd",0.9144],["Mile","mi",1609.344]],
+  "Weight": [["Milligram","mg",1e-6],["Gram","g",0.001],["Kilogram","kg",1],["Tonne","t",1000],["Ounce","oz",0.028349523125],["Pound","lb",0.45359237],["Stone","st",6.35029318]],
+  "Temperature": [["Celsius","°C"],["Fahrenheit","°F"],["Kelvin","K"]],
+  "Area": [["Square metre","m²",1],["Square km","km²",1e6],["Square foot","sq ft",0.09290304],["Square yard","sq yd",0.83612736],["Cent","cent",40.468564224],["Ground","ground",222.967296],["Acre","ac",4046.8564224],["Hectare","ha",10000]],
+  "Volume": [["Millilitre","mL",0.001],["Litre","L",1],["Cubic metre","m³",1000],["Teaspoon (US)","tsp",0.00492892159375],["Tablespoon (US)","tbsp",0.01478676478125],["Cup (US)","cup",0.2365882365],["Fluid ounce (US)","fl oz",0.0295735295625],["Gallon (US)","gal",3.785411784]],
+  "Speed": [["Metre/second","m/s",1],["Kilometre/hour","km/h",1/3.6],["Mile/hour","mph",0.44704],["Knot","kn",0.514444444]],
+  "Data": [["Byte","B",1],["Kilobyte","KB",1024],["Megabyte","MB",1048576],["Gigabyte","GB",1073741824],["Terabyte","TB",1099511627776]],
+  "Time": [["Millisecond","ms",0.001],["Second","s",1],["Minute","min",60],["Hour","h",3600],["Day","d",86400],["Week","wk",604800]]
+};
+const toC = { "°C": v => v, "°F": v => (v - 32) * 5 / 9, "K": v => v - 273.15 };
+const fromC = { "°C": v => v, "°F": v => v * 9 / 5 + 32, "K": v => v + 273.15 };
+let cat = "Length";
+
+function convert(v, a, b) {
+  const u = CATS[cat];
+  if (cat === "Temperature") return fromC[u[b][1]](toC[u[a][1]](v));
+  return v * u[a][2] / u[b][2];
+}
+function fmt(n) {
+  if (!isFinite(n)) return "—";
+  if (n === 0) return "0";
+  if (Math.abs(n) >= 1e15 || Math.abs(n) < 1e-6) return n.toExponential(6);
+  return Number(n.toPrecision(10)).toLocaleString(undefined, { maximumFractionDigits: 10 });
+}
+function fillSelects(a = 0, b = 1) {
+  const opts = CATS[cat].map((u, i) => `<option value="${i}">${u[0]} (${u[1]})</option>`).join("");
+  $("from").innerHTML = $("to").innerHTML = opts;
+  $("from").value = a; $("to").value = b;
+}
+function render() {
+  const res = $("res"), all = $("all"), u = CATS[cat];
+  const v = parseFloat($("val").value), a = +$("from").value, b = +$("to").value;
+  if (isNaN(v)) { res.textContent = "Enter a number."; res.classList.add("err"); all.innerHTML = ""; return; }
+  res.classList.remove("err");
+  res.textContent = `${fmt(v)} ${u[a][1]} = ${fmt(convert(v, a, b))} ${u[b][1]}`;
+  all.innerHTML = u.map((x, i) => i === a ? "" : `<div><b>${fmt(convert(v, a, i))}</b><span>${x[0]} (${x[1]})</span></div>`).join("");
+}
+function tabs() {
+  $("tabs").innerHTML = Object.keys(CATS).map(k => `<button type="button" data-cat="${k}" class="${k === cat ? "on" : ""}">${k}</button>`).join("");
+}
+$("tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-cat]");
+  if (!b) return;
+  cat = b.dataset.cat; tabs(); fillSelects(); render();
+});
+$("swap").addEventListener("click", () => { const a = $("from").value; $("from").value = $("to").value; $("to").value = a; render(); });
+["val", "from", "to"].forEach(id => $(id).addEventListener("input", render));
+tabs(); fillSelects(); render();
+
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free PDF Splitter – Split or Extract PDF Pages | TOOLBOX</title>
+<meta name="description" content="Split a PDF into separate files or extract the pages you need. Free, private, no upload.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / PDF tools / PDF Splitter</p>
+  <h1>PDF Splitter</h1>
+  <p class="lead">Extract the pages you need, split a PDF into parts, or save every page as its own file. Everything happens in your browser.</p>
+
+  <label class="drop" id="drop" for="file">
+    <b>Drop a PDF here or click to choose</b>
+    <span>One PDF at a time.</span>
+  </label>
+  <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+  <p class="status" id="msg" aria-live="polite"></p>
+
+  <div id="panel" hidden>
+    <div class="list" id="info"></div>
+    <div class="opts">
+      <label>What do you want?
+        <select id="mode">
+          <option value="extract">Extract pages into one PDF</option>
+          <option value="ranges">Split ranges into separate PDFs</option>
+          <option value="each">Every page as its own PDF</option>
+        </select>
+      </label>
+      <label id="rangeBox">Pages
+        <input class="num wide" id="ranges" type="text" placeholder="e.g. 1-3, 5, 8-10" autocomplete="off">
+      </label>
+      <button class="btn" id="go" type="button">Split PDF</button>
+    </div>
+  </div>
+  <div class="list" id="result" aria-live="polite"></div>
+
+  <section class="note">
+    <h2>Examples</h2>
+    <ul>
+      <li><b>Extract</b> with “1-3, 7” gives one new PDF with pages 1, 2, 3 and 7.</li>
+      <li><b>Split ranges</b> with “1-3, 7” gives two PDFs: one with pages 1-3 and one with page 7.</li>
+      <li>Password-protected PDFs can’t be split. Your file stays in your browser.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const fmt = b => b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(2) + " MB";
+const base = f => f.name.replace(/\.[^.]+$/, "");
+const isPdf = f => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+function setMsg(t, err) { const m = $("msg"); m.textContent = t; m.className = "status" + (err ? " err" : ""); }
+function dlLink(blob, name) { const a = el("a", "btn alt", "Download"); a.href = URL.createObjectURL(blob); a.download = name; return a; }
+function setupDrop(handler) {
+  ["dragover", "dragenter"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+  ["dragleave", "drop"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+  $("drop").addEventListener("drop", e => handler([...e.dataTransfer.files]));
+  $("file").addEventListener("change", e => { const l = [...e.target.files]; e.target.value = ""; handler(l); });
+}
+function parseRanges(str, total) {
+  const out = [];
+  const tokens = str.split(",").map(s => s.trim()).filter(Boolean);
+  if (!tokens.length) throw new Error("Type the pages you want, like 1-3, 5, 8-10.");
+  for (const t of tokens) {
+    const m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(t);
+    if (!m) throw new Error(`“${t}” is not a valid page or range. Use numbers like 1-3, 5.`);
+    const a = +m[1], b = m[2] ? +m[2] : a;
+    if (a < 1 || b < a || b > total) throw new Error(`“${t}” is outside this PDF, which has ${total} page${total > 1 ? "s" : ""}.`);
+    out.push([a, b]);
+  }
+  return out;
+}
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a - 1 + i);
+function pdfRow(name, info, action) {
+  const row = el("div", "item"), mid = el("div");
+  mid.append(el("div", "nm", name), el("span", "st", info));
+  row.append(el("div", "pdfico", "PDF"), mid);
+  if (action) row.append(action);
+  return row;
+}
+
+let srcBytes = null, total = 0, fileBase = "";
+
+async function loadFile(list) {
+  const f = list.find(isPdf);
+  $("result").innerHTML = "";
+  if (!f) { setMsg("Choose a PDF file.", 1); return; }
+  if (typeof PDFLib === "undefined") { setMsg("The PDF library did not load. Check your internet connection and reload.", 1); return; }
+  setMsg("Reading file…");
+  try {
+    srcBytes = await f.arrayBuffer();
+    const doc = await PDFLib.PDFDocument.load(srcBytes);
+    total = doc.getPageCount(); fileBase = base(f);
+    $("info").innerHTML = ""; $("info").append(pdfRow(f.name, `${total} page${total > 1 ? "s" : ""}, ${fmt(f.size)}`));
+    $("ranges").placeholder = `e.g. 1-${Math.min(3, total)}${total > 4 ? ", 5" : ""}`;
+    $("panel").hidden = false; setMsg("");
+  } catch (e) { $("panel").hidden = true; setMsg("Can’t open this PDF. It may be damaged or password protected.", 1); }
+}
+
+async function build(pageIdx, name) {
+  const src = await PDFLib.PDFDocument.load(srcBytes);
+  const out = await PDFLib.PDFDocument.create();
+  (await out.copyPages(src, pageIdx)).forEach(p => out.addPage(p));
+  const blob = new Blob([await out.save()], { type: "application/pdf" });
+  $("result").append(pdfRow(name, `${pageIdx.length} page${pageIdx.length > 1 ? "s" : ""}, ${fmt(blob.size)}`, dlLink(blob, name)));
+}
+
+$("mode").addEventListener("change", () => { $("rangeBox").hidden = $("mode").value === "each"; });
+$("go").addEventListener("click", async () => {
+  const mode = $("mode").value;
+  $("result").innerHTML = "";
+  try {
+    let jobs = [];
+    if (mode === "each") jobs = range(1, total).map(i => [[i], `${fileBase}-page-${i + 1}.pdf`]);
+    else {
+      const rs = parseRanges($("ranges").value, total);
+      if (mode === "extract") jobs = [[rs.flatMap(([a, b]) => range(a, b)), `${fileBase}-extracted.pdf`]];
+      else jobs = rs.map(([a, b]) => [range(a, b), a === b ? `${fileBase}-page-${a}.pdf` : `${fileBase}-pages-${a}-${b}.pdf`]);
+    }
+    $("go").disabled = true;
+    for (let k = 0; k < jobs.length; k++) { setMsg(`Creating file ${k + 1} of ${jobs.length}…`); await build(...jobs[k]); }
+    setMsg(`Done. ${jobs.length} PDF${jobs.length > 1 ? "s are" : " is"} ready to download.`);
+  } catch (e) { setMsg(e.message || "Something went wrong while splitting.", 1); $("result").innerHTML = ""; }
+  $("go").disabled = false;
+});
+setupDrop(loadFile);
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

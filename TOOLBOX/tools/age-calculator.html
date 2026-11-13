@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Age Calculator – Exact Age in Years, Months & Days | TOOLBOX</title>
+<meta name="description" content="Find your exact age in years, months and days, total days lived, and days until your next birthday.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / Calculators / Age Calculator</p>
+  <h1>Age Calculator</h1>
+  <p class="lead">Enter your date of birth to see your exact age and how long until your next birthday.</p>
+
+  <div class="panel" style="margin-bottom:18px">
+    <div class="row2">
+      <label class="field">Date of birth <input class="num" id="dob" type="date"></label>
+      <label class="field">Age on this date <input class="num" id="on" type="date"></label>
+    </div>
+    <div class="result err" id="msg" aria-live="polite">Pick your date of birth.</div>
+  </div>
+  <div class="stats" id="stats" hidden>
+    <div class="stat" style="--c:var(--violet)"><b id="y">0</b><span>Years</span></div>
+    <div class="stat" style="--c:var(--pink)"><b id="m">0</b><span>Months</span></div>
+    <div class="stat" style="--c:var(--blue)"><b id="d">0</b><span>Days</span></div>
+    <div class="stat" style="--c:var(--teal)"><b id="td">0</b><span>Total days lived</span></div>
+    <div class="stat" style="--c:var(--amber)"><b id="nb">0</b><span id="nbl">Days to next birthday</span></div>
+  </div>
+  <p class="result" id="bday" style="--c:var(--amber)" hidden></p>
+  <section class="note">
+    <h2>Good to know</h2>
+    <ul>
+      <li>Change “Age on this date” to find age on any day, like a form deadline.</li>
+      <li>Your date of birth stays in your browser and is never stored or sent.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const today = new Date(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+$("on").value = iso(today); $("dob").max = iso(today);
+const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const utc = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+const nf = new Intl.NumberFormat();
+
+function calc() {
+  const stats = $("stats"), msg = $("msg"), bday = $("bday");
+  stats.hidden = bday.hidden = true;
+  if (!$("dob").value || !$("on").value) { msg.hidden = false; msg.textContent = "Pick your date of birth."; return; }
+  const b = parse($("dob").value), t = parse($("on").value);
+  if (b > t) { msg.hidden = false; msg.textContent = "Date of birth must be before the second date."; return; }
+  msg.hidden = true;
+
+  let y = t.getFullYear() - b.getFullYear(), m = t.getMonth() - b.getMonth(), d = t.getDate() - b.getDate();
+  if (d < 0) { m--; d += new Date(t.getFullYear(), t.getMonth(), 0).getDate(); }
+  if (m < 0) { y--; m += 12; }
+  $("y").textContent = y; $("m").textContent = m; $("d").textContent = d;
+  $("td").textContent = nf.format(Math.round((utc(t) - utc(b)) / 864e5));
+
+  let next = new Date(t.getFullYear(), b.getMonth(), b.getDate());
+  if (next < t) next = new Date(t.getFullYear() + 1, b.getMonth(), b.getDate());
+  const left = Math.round((utc(next) - utc(t)) / 864e5);
+  $("nb").textContent = left === 0 ? "Today!" : nf.format(left);
+  $("nbl").textContent = left === 0 ? "Happy birthday" : "Days to next birthday";
+  bday.textContent = `You were born on a ${b.toLocaleDateString(undefined, { weekday: "long" })}. Your next birthday falls on a ${next.toLocaleDateString(undefined, { weekday: "long" })}.`;
+  stats.hidden = bday.hidden = false;
+}
+["dob", "on"].forEach(id => $(id).addEventListener("input", calc));
+calc();
+
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Word Counter – Count Words, Characters & Reading Time | TOOLBOX</title>
+<meta name="description" content="Count words, characters, sentences and paragraphs instantly. See reading and speaking time. Free, private, no signup.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / Text tools / Word Counter</p>
+  <h1>Word Counter</h1>
+  <p class="lead">Type or paste your text to see words, characters, sentences and reading time update instantly.</p>
+
+  <div class="stats" aria-live="polite">
+    <div class="stat" style="--c:var(--violet)"><b id="words">0</b><span>Words</span></div>
+    <div class="stat" style="--c:var(--pink)"><b id="chars">0</b><span>Characters</span></div>
+    <div class="stat" style="--c:var(--blue)"><b id="nospace">0</b><span>Without spaces</span></div>
+    <div class="stat" style="--c:var(--teal)"><b id="sentences">0</b><span>Sentences</span></div>
+    <div class="stat" style="--c:var(--amber)"><b id="paras">0</b><span>Paragraphs</span></div>
+    <div class="stat" style="--c:var(--violet)"><b id="read">0 sec</b><span>Reading time</span></div>
+    <div class="stat" style="--c:var(--pink)"><b id="speak">0 sec</b><span>Speaking time</span></div>
+  </div>
+
+  <textarea id="text" class="area" placeholder="Start typing or paste your text here…" aria-label="Your text"></textarea>
+  <div class="actions">
+    <button class="btn" id="copy" type="button">Copy text</button>
+    <button class="btn ghost" id="clear" type="button">Clear</button>
+  </div>
+
+  <section class="note">
+    <h2>How it counts</h2>
+    <ul>
+      <li>Words are groups of characters separated by spaces or line breaks.</li>
+      <li>Reading time assumes 200 words per minute, speaking time 130.</li>
+      <li>Your text stays in your browser and is never sent anywhere.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat();
+
+function time(words, wpm) {
+  const s = Math.round(words / wpm * 60);
+  if (s < 60) return s + " sec";
+  const m = Math.floor(s / 60), r = s % 60;
+  return r ? `${m} min ${r} sec` : `${m} min`;
+}
+
+function update() {
+  const t = $("text").value;
+  const trimmed = t.trim();
+  const words = trimmed ? trimmed.split(/\s+/).length : 0;
+  const sentences = trimmed ? (trimmed.match(/[^.!?।]+[.!?।]*/g) || []).filter(s => s.trim()).length : 0;
+  const paras = trimmed ? trimmed.split(/\n\s*\n/).filter(p => p.trim()).length : 0;
+  $("words").textContent = nf.format(words);
+  $("chars").textContent = nf.format(Array.from(t).length);
+  $("nospace").textContent = nf.format(Array.from(t.replace(/\s/g, "")).length);
+  $("sentences").textContent = nf.format(sentences);
+  $("paras").textContent = nf.format(paras);
+  $("read").textContent = time(words, 200);
+  $("speak").textContent = time(words, 130);
+}
+
+$("text").addEventListener("input", update);
+$("clear").addEventListener("click", () => { $("text").value = ""; update(); $("text").focus(); });
+$("copy").addEventListener("click", async () => {
+  const b = $("copy");
+  try { await navigator.clipboard.writeText($("text").value); b.textContent = "Copied"; }
+  catch { b.textContent = "Copy failed. Select the text and press Ctrl+C."; }
+  setTimeout(() => b.textContent = "Copy text", 1800);
+});
+$("year").textContent = new Date().getFullYear();
+update();
+</script>
+</body>
+</html>

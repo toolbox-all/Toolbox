@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free Image Resizer – Change Image Size in Pixels or Percent | TOOLBOX</title>
+<meta name="description" content="Resize JPG, PNG and WebP images by pixels or percent. Keep the aspect ratio and download instantly. Free and private.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236C4DFF'/><rect x='7' y='12' width='18' height='12' rx='3' fill='white'/></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="nav">
+  <a class="logo" href="../index.html" aria-label="TOOLBOX home">
+    <img src="../assets/logo.png" alt="TOOLBOX" width="174" height="44">
+  </a>
+  <nav aria-label="Main"><a href="../index.html#popular">Popular</a><a href="../index.html#categories">Categories</a><a href="../index.html#all-tools">All tools</a></nav>
+</header>
+
+<main class="tool">
+  <p class="crumbs"><a href="../index.html">Home</a> / Image tools / Image Resizer</p>
+  <h1>Image Resizer</h1>
+  <p class="lead">Change the width and height of your images by pixels or percent. Everything runs in your browser, so nothing is uploaded.</p>
+
+  <label class="drop" id="drop" for="file">
+    <b>Drop images here or click to choose</b>
+    <span>JPG, PNG or WebP. You can pick many files at once.</span>
+  </label>
+  <input id="file" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+  <p class="st" id="count" style="margin-top:10px;color:var(--muted)" aria-live="polite"></p>
+
+  <div class="opts">
+    <label>Resize by
+      <select id="mode"><option value="pixels">Pixels</option><option value="percent">Percent</option></select>
+    </label>
+    <label id="pctBox" hidden>Scale (%)<input class="num" id="pct" type="number" min="1" max="500" value="50"></label>
+    <label id="wBox">Width (px)<input class="num" id="w" type="number" min="1" placeholder="auto"></label>
+    <label id="hBox">Height (px)<input class="num" id="h" type="number" min="1" placeholder="auto"></label>
+    <label class="check" id="lockBox"><input id="lock" type="checkbox" checked> Keep aspect ratio</label>
+  </div>
+  <div class="opts" style="margin-top:0">
+    <label>Output format
+      <select id="format"><option value="same">Same as original</option><option value="image/jpeg">JPG</option><option value="image/png">PNG</option><option value="image/webp">WebP</option></select>
+    </label>
+    <label>Quality: <output id="qv">90%</output><input id="quality" type="range" min="10" max="100" value="90"></label>
+    <button class="btn" id="go" type="button" disabled>Resize images</button>
+  </div>
+
+  <div class="list" id="list" aria-live="polite"></div>
+
+  <section class="note">
+    <h2>Tips</h2>
+    <ul>
+      <li>Enter only a width or only a height, and the other side is worked out for you.</li>
+      <li>With both filled and aspect ratio kept, the image fits inside that box without stretching.</li>
+      <li>Quality applies to JPG and WebP. PNG is always lossless.</li>
+    </ul>
+  </section>
+</main>
+
+<footer class="footer">
+  <a class="logo" href="../index.html"><img src="../assets/logo.png" alt="TOOLBOX" width="135" height="34"></a>
+  <nav aria-label="Footer"><a href="../index.html">All tools</a><a href="../privacy-policy.html">Privacy policy</a></nav>
+  <p>© <span id="year"></span> TOOLBOX.</p>
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = b => b < 1024 ? b + " B" : b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(2) + " MB";
+const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const files = [];
+
+function load(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => res({ img, url });
+    img.onerror = () => rej(new Error("Can’t read this image."));
+    img.src = url;
+  });
+}
+function toCanvas(img, w, h, type) {
+  if (w * h > 50e6) throw new Error("Image is too large to process in the browser.");
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  if (type === "image/jpeg") { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); }
+  ctx.drawImage(img, 0, 0, w, h);
+  return c;
+}
+const toBlob = (c, type, q) => new Promise(r => c.toBlob(r, type, q));
+
+function row(file, r, info, err) {
+  const el = document.createElement("div");
+  el.className = "item";
+  el.innerHTML = `<img alt="" src="${r ? r.url : ""}"><div><div class="nm"></div><span class="st"></span></div>`;
+  el.querySelector(".nm").textContent = file.name;
+  el.querySelector(".st").textContent = err || info;
+  if (r) {
+    const a = document.createElement("a");
+    a.className = "btn alt"; a.textContent = "Download";
+    a.href = URL.createObjectURL(r.blob); a.download = r.name;
+    el.append(a);
+  }
+  return el;
+}
+const base = f => f.name.replace(/\.[^.]+$/, "");
+
+function target(img) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  let w, h;
+  if ($("mode").value === "percent") {
+    const p = Math.max(1, +$("pct").value || 100) / 100;
+    w = W * p; h = H * p;
+  } else {
+    const iw = +$("w").value || 0, ih = +$("h").value || 0;
+    if (!iw && !ih) throw new Error("Enter a width or a height.");
+    if ($("lock").checked) {
+      if (iw && ih) { const s = Math.min(iw / W, ih / H); w = W * s; h = H * s; }
+      else if (iw) { w = iw; h = H * iw / W; }
+      else { h = ih; w = W * ih / H; }
+    } else { w = iw || W; h = ih || H; }
+  }
+  return [Math.max(1, Math.round(w)), Math.max(1, Math.round(h))];
+}
+
+async function resize(file) {
+  const { img, url } = await load(file);
+  const type = $("format").value === "same" ? file.type : $("format").value;
+  const [w, h] = target(img);
+  const blob = await toBlob(toCanvas(img, w, h, type), type, $("quality").value / 100);
+  return { url, blob, name: `${base(file)}-${w}x${h}.${EXT[type] || "png"}`,
+           info: `${img.naturalWidth}×${img.naturalHeight} → ${w}×${h} px, ${fmt(file.size)} → ${fmt(blob.size)}` };
+}
+
+async function run() {
+  $("list").innerHTML = "";
+  for (const f of files) {
+    try { const r = await resize(f); $("list").append(row(f, r, r.info)); }
+    catch (e) { $("list").append(row(f, null, "", e.message)); }
+  }
+}
+function setMode() {
+  const px = $("mode").value === "pixels";
+  $("pctBox").hidden = px; $("wBox").hidden = $("hBox").hidden = $("lockBox").hidden = !px;
+}
+function add(list) {
+  const ok = [...list].filter(f => EXT[f.type]);
+  files.length = 0; files.push(...ok);
+  $("count").textContent = ok.length ? `${ok.length} image${ok.length > 1 ? "s" : ""} selected.` : "Choose JPG, PNG or WebP images.";
+  $("go").disabled = !ok.length; $("list").innerHTML = "";
+}
+$("file").addEventListener("change", e => add(e.target.files));
+$("mode").addEventListener("change", setMode);
+$("quality").addEventListener("input", e => { $("qv").textContent = e.target.value + "%"; });
+$("go").addEventListener("click", run);
+["dragover", "dragenter"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave", "drop"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", e => add(e.dataTransfer.files));
+setMode();
+
+$("year").textContent = new Date().getFullYear();
+</script>
+</body>
+</html>
